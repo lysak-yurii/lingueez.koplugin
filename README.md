@@ -118,3 +118,18 @@ Words are saved to Supabase with the following structure:
 - KOReader with plugin support
 - Supabase account and project
 - Internet connection for saving words
+
+## License
+
+Copyright (C) 2024 Yurii Lysak
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version. This matches the license of KOReader itself.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+The full license text is available in the [LICENSE](LICENSE) file.
