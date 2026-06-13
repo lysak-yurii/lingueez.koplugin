@@ -150,8 +150,9 @@ function DictSync:translateWithDeepL(word, source_lang_code, target_lang_code, a
     end
     
     -- Build form data string manually (DeepL expects form-urlencoded)
+    -- Note: DeepL dropped form-body auth_key in November 2025 — the key is now
+    -- sent via the Authorization header below.
     local form_parts = {
-        "auth_key=" .. self:urlEncode(api_key),
         "text=" .. self:urlEncode(word),
         "target_lang=" .. self:urlEncode(target_code),
     }
@@ -168,6 +169,7 @@ function DictSync:translateWithDeepL(word, source_lang_code, target_lang_code, a
             method = "POST",
             headers = {
                 ["Content-Type"] = "application/x-www-form-urlencoded",
+                ["Authorization"] = "DeepL-Auth-Key " .. api_key,
             },
             source = ltn12.source.string(form_data),
             sink = ltn12.sink.table(response_body),
@@ -4408,6 +4410,18 @@ function DictSync:addToMainMenu(menu_items)
                     self:showFlashcardsLauncher()
                 end,
             },
+            {
+                text = "About",
+                keep_menu_open = true,
+                callback = function()
+                    local meta = self.meta or {}
+                    UIManager:show(InfoMessage:new{
+                        text = (meta.fullname or "Dictionary Sync")
+                            .. "\n\nVersion " .. (meta.version or "?")
+                            .. "  ·  Build " .. (meta.build or "?"),
+                    })
+                end,
+            },
         },
     }
 end
@@ -4448,6 +4462,7 @@ function DictSync:init()
                 fullname = "Dictionary Sync",
                 description = "Save words to Supabase dictionary database",
                 version = "1.0.0",
+                build = "0",
             }
             logger.info("Dictionary Sync: Using default meta")
         end
