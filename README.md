@@ -9,14 +9,13 @@ While you read, long-press a word and tap **Save to Lingueez**: the plugin detec
 the language, translates it, and stores it in your account. By the time you next open
 Lingueez on your computer, in reader or in the web, the word is already there — ready to study.
 
-![Reviewing saved words with flashcards on the reader](screenshots/flashcards.png)
+![Saving a word to Lingueez from a book on the reader](screenshots/save-word.png)
 
 ## Features
 
 - **Flashcards - Review on the reader** — flip through flashcards and your saved words right where
-  you read.
-- **Quick save while you read** — long-press any word and save it without leaving the book
-  ([screenshot](screenshots/save-word.png)).
+  you read ([screenshot](screenshots/flashcards.png)).
+- **Quick save while you read** — long-press any word and save it without leaving the book.
 - **Instant translation** — Google Translate built in, with optional DeepL.
 - **Knows the language** — the source language is detected from the book, so there is
   nothing to pick for each word.
