@@ -41,63 +41,110 @@ local DictSync = InputContainer:new {
 local DEFAULT_SUPABASE_URL = "https://dtyrmkynrideeknsdlrn.supabase.co"
 local DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0eXJta3lucmlkZWVrbnNkbHJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4Njc1MTQsImV4cCI6MjA5NzQ0MzUxNH0.dds5SyMBN9u-0TUumB2nSCx68FJfpm3n63fLq1n9o10"
 
--- Language mapping from KOReader codes to dictionary app language names
-local LANGUAGE_MAP = {
-    ["en"] = "English",
-    ["de"] = "German",
-    ["fr"] = "French",
-    ["es"] = "Spanish",
-    ["it"] = "Italian",
-    ["pt"] = "Portuguese",
-    ["ru"] = "Russian",
-    ["ja"] = "Japanese",
-    ["zh"] = "Chinese",
-    ["zh-CN"] = "Chinese",
-    ["zh-HK"] = "Cantonese",
-    ["uk"] = "Ukrainian",
-    ["el"] = "Greek",
-    ["nl"] = "Dutch",
-    ["pl"] = "Polish",
-    ["bg"] = "Bulgarian",
-    ["hr"] = "Croatian",
-    ["cs"] = "Czech",
-    ["da"] = "Danish",
-    ["et"] = "Estonian",
-    ["fi"] = "Finnish",
-    ["hu"] = "Hungarian",
-    ["lv"] = "Latvian",
-    ["lt"] = "Lithuanian",
-    ["no"] = "Norwegian",
-    ["ro"] = "Romanian",
-    ["sk"] = "Slovak",
-    ["sl"] = "Slovenian",
-    ["sv"] = "Swedish",
-    ["ar"] = "Arabic",
-    ["hi"] = "Hindi",
-    ["ko"] = "Korean",
-    ["tr"] = "Turkish",
-    ["vi"] = "Vietnamese",
+-- The languages Lingueez knows, mirroring app/core/languages.py in the desktop
+-- app: one vocabulary of English language names (the values stored in the DB)
+-- with a separate code map per service. Keep the two files in step — a name that
+-- only exists here would sync rows the desktop app cannot translate or speak.
+
+-- Language name -> Google Translate code. The widest set: anything that can be
+-- translated at all is here.
+local LANGUAGE_CODE_MAP = {
+    ["Afrikaans"] = "af", ["Albanian"] = "sq", ["Amharic"] = "am", ["Arabic"] = "ar",
+    ["Armenian"] = "hy", ["Azerbaijani"] = "az", ["Basque"] = "eu", ["Belarusian"] = "be",
+    ["Bengali"] = "bn", ["Bosnian"] = "bs", ["Bulgarian"] = "bg", ["Cantonese"] = "zh-HK",
+    ["Catalan"] = "ca", ["Cebuano"] = "ceb", ["Chichewa"] = "ny", ["Croatian"] = "hr",
+    ["Czech"] = "cs", ["Danish"] = "da", ["Dutch"] = "nl", ["English"] = "en",
+    ["Estonian"] = "et", ["Filipino"] = "fil", ["Finnish"] = "fi", ["French"] = "fr",
+    ["Galician"] = "gl", ["Georgian"] = "ka", ["German"] = "de", ["Greek"] = "el",
+    ["Gujarati"] = "gu", ["Haitian Creole"] = "ht", ["Hausa"] = "ha", ["Hawaiian"] = "haw",
+    ["Hebrew"] = "he", ["Hindi"] = "hi", ["Hmong"] = "hmn", ["Hungarian"] = "hu",
+    ["Icelandic"] = "is", ["Igbo"] = "ig", ["Indonesian"] = "id", ["Irish"] = "ga",
+    ["Italian"] = "it", ["Japanese"] = "ja", ["Javanese"] = "jv", ["Kannada"] = "kn",
+    ["Kazakh"] = "kk", ["Khmer"] = "km", ["Kinyarwanda"] = "rw", ["Korean"] = "ko",
+    ["Kyrgyz"] = "ky", ["Lao"] = "lo", ["Latin"] = "la", ["Latvian"] = "lv",
+    ["Lithuanian"] = "lt", ["Luxembourgish"] = "lb", ["Macedonian"] = "mk", ["Malagasy"] = "mg",
+    ["Malay"] = "ms", ["Malayalam"] = "ml", ["Maltese"] = "mt", ["Mandarin"] = "zh-CN",
+    ["Maori"] = "mi", ["Marathi"] = "mr", ["Mongolian"] = "mn", ["Myanmar (Burmese)"] = "my",
+    ["Nepali"] = "ne", ["Norwegian"] = "no", ["Odia"] = "or", ["Pashto"] = "ps",
+    ["Persian"] = "fa", ["Polish"] = "pl", ["Portuguese"] = "pt", ["Punjabi"] = "pa",
+    ["Romanian"] = "ro", ["Russian"] = "ru", ["Samoan"] = "sm", ["Scots Gaelic"] = "gd",
+    ["Serbian"] = "sr", ["Sesotho"] = "st", ["Shona"] = "sn", ["Sindhi"] = "sd",
+    ["Sinhala"] = "si", ["Slovak"] = "sk", ["Slovenian"] = "sl", ["Somali"] = "so",
+    ["Spanish"] = "es", ["Sundanese"] = "su", ["Swahili"] = "sw", ["Swedish"] = "sv",
+    ["Tajik"] = "tg", ["Tamil"] = "ta", ["Tatar"] = "tt", ["Telugu"] = "te",
+    ["Thai"] = "th", ["Turkish"] = "tr", ["Turkmen"] = "tk", ["Ukrainian"] = "uk",
+    ["Urdu"] = "ur", ["Uyghur"] = "ug", ["Uzbek"] = "uz", ["Vietnamese"] = "vi",
+    ["Welsh"] = "cy", ["Xhosa"] = "xh", ["Yiddish"] = "yi", ["Yoruba"] = "yo",
+    ["Zulu"] = "zu",
 }
 
--- Reverse map: language name to code (for translation APIs)
-local LANGUAGE_CODE_MAP = {}
-for code, name in pairs(LANGUAGE_MAP) do
-    LANGUAGE_CODE_MAP[name] = code
+-- Names once stored in the DB that are no longer offered, mapped to their
+-- current equivalent. "Chinese" predates splitting Mandarin from Cantonese.
+local LANGUAGE_ALIASES = {
+    ["Chinese"] = "Mandarin",
+}
+
+-- Document codes that don't appear verbatim above: legacy ISO codes, script and
+-- region subtags books actually carry, and the bare "zh" the split left behind.
+local CODE_ALIASES = {
+    ["zh"] = "Mandarin", ["zh-hans"] = "Mandarin", ["zh-hant"] = "Mandarin",
+    ["zh-tw"] = "Mandarin", ["zh-sg"] = "Mandarin", ["cmn"] = "Mandarin",
+    ["yue"] = "Cantonese", ["zh-yue"] = "Cantonese",
+    ["iw"] = "Hebrew",      -- pre-1989 code, still emitted by some tools
+    ["in"] = "Indonesian",
+    ["ji"] = "Yiddish",
+    ["tl"] = "Filipino",
+    ["jw"] = "Javanese",
+    ["nb"] = "Norwegian", ["nn"] = "Norwegian",
+    ["mo"] = "Romanian",
+    ["sh"] = "Serbian",
+}
+
+-- Reverse map: lowercased language code -> language name
+local LANGUAGE_MAP = {}
+for name, code in pairs(LANGUAGE_CODE_MAP) do
+    LANGUAGE_MAP[code:lower()] = name
+end
+for code, name in pairs(CODE_ALIASES) do
+    LANGUAGE_MAP[code] = name
+end
+
+-- Language names, sorted, for every picker that lists them
+local LANGUAGE_NAMES = {}
+for name in pairs(LANGUAGE_CODE_MAP) do
+    table.insert(LANGUAGE_NAMES, name)
+end
+table.sort(LANGUAGE_NAMES)
+
+-- Resolve a stored language name to the one the code maps are keyed on
+local function canonicalLanguage(name)
+    if not name then return nil end
+    return LANGUAGE_ALIASES[name] or name
+end
+
+-- Wikipedia subdomains where they differ from the Google Translate code
+local WIKIPEDIA_CODE_OVERRIDES = {
+    ["zh-CN"] = "zh", ["zh-HK"] = "zh", ["fil"] = "tl",
+}
+
+-- Wikipedia subdomain for a language name (matches the desktop app's wiki_lang)
+local function wikipediaLanguageCode(name)
+    local code = LANGUAGE_CODE_MAP[canonicalLanguage(name) or ""]
+    if not code then return "en" end
+    code = WIKIPEDIA_CODE_OVERRIDES[code] or code
+    return code:match("^([^-]+)"):lower()
 end
 
 -- Map KOReader language code to dictionary app language name
 function DictSync:mapLanguageCode(code)
     if not code then return "English" end
-    -- Try exact match first
-    if LANGUAGE_MAP[code] then
-        return LANGUAGE_MAP[code]
+    local lower = code:lower()
+    -- Try exact match first (e.g. "zh-HK" -> Cantonese)
+    if LANGUAGE_MAP[lower] then
+        return LANGUAGE_MAP[lower]
     end
-    -- Try lowercase
-    if LANGUAGE_MAP[code:lower()] then
-        return LANGUAGE_MAP[code:lower()]
-    end
-    -- Try splitting on hyphen (e.g., "zh-CN" -> "zh")
-    local base_code = code:match("^([^-]+)")
+    -- Try splitting on hyphen (e.g., "pt-BR" -> "pt")
+    local base_code = lower:match("^([^-]+)")
     if base_code and LANGUAGE_MAP[base_code] then
         return LANGUAGE_MAP[base_code]
     end
@@ -105,11 +152,128 @@ function DictSync:mapLanguageCode(code)
     return "English"
 end
 
+-- Shared language picker. The full list is far too long for one dialog, so it
+-- pages through the names two to a row.
+-- opts: title, current (name or nil), any (label for the "no language" choice,
+-- omitted to make the choice mandatory), on_select(name_or_nil), on_cancel,
+-- dialog_key (field on self to keep the open dialog in, for outer dialogs that
+-- close it themselves).
+local LANGUAGE_PICKER_COLUMNS = 2
+local LANGUAGE_PICKER_ROWS = 12
+
+function DictSync:showLanguagePicker(opts)
+    local per_page = LANGUAGE_PICKER_COLUMNS * LANGUAGE_PICKER_ROWS
+    local total_pages = math.max(1, math.ceil(#LANGUAGE_NAMES / per_page))
+    local dialog
+
+    local function label(text, selected)
+        return (selected and "✓ " or "") .. text
+    end
+
+    local function closeDialog()
+        if dialog then
+            UIManager:close(dialog)
+            dialog = nil
+            if opts.dialog_key then
+                self[opts.dialog_key] = nil
+            end
+        end
+    end
+
+    local function openPage(page_number)
+        local rows = {}
+        if page_number == 1 and opts.any then
+            table.insert(rows, {{
+                text = label(opts.any, opts.current == nil or opts.current == ""),
+                callback = function()
+                    closeDialog()
+                    opts.on_select(nil)
+                end,
+            }})
+        end
+
+        local start_idx = (page_number - 1) * per_page + 1
+        local end_idx = math.min(start_idx + per_page - 1, #LANGUAGE_NAMES)
+        local row = {}
+        for i = start_idx, end_idx do
+            local name = LANGUAGE_NAMES[i]
+            table.insert(row, {
+                text = label(name, opts.current == name),
+                callback = function()
+                    closeDialog()
+                    opts.on_select(name)
+                end,
+            })
+            if #row == LANGUAGE_PICKER_COLUMNS then
+                table.insert(rows, row)
+                row = {}
+            end
+        end
+        if #row > 0 then
+            table.insert(rows, row)
+        end
+
+        local nav_row = {}
+        if page_number > 1 then
+            table.insert(nav_row, {
+                text = "◀ Previous",
+                callback = function() openPage(page_number - 1) end,
+            })
+        end
+        table.insert(nav_row, {
+            text = "Cancel",
+            callback = function()
+                closeDialog()
+                if opts.on_cancel then opts.on_cancel() end
+            end,
+        })
+        if page_number < total_pages then
+            table.insert(nav_row, {
+                text = "Next ▶",
+                callback = function() openPage(page_number + 1) end,
+            })
+        end
+        table.insert(rows, nav_row)
+
+        closeDialog()
+        dialog = ButtonDialog:new{
+            title = string.format("%s (Page %d/%d)", opts.title, page_number, total_pages),
+            buttons = rows,
+        }
+        if opts.dialog_key then
+            self[opts.dialog_key] = dialog
+        end
+        UIManager:show(dialog)
+    end
+
+    -- Open on the page holding the current selection, so it is visible
+    local start_page = 1
+    if opts.current and opts.current ~= "" then
+        for i, name in ipairs(LANGUAGE_NAMES) do
+            if name == opts.current then
+                start_page = math.floor((i - 1) / per_page) + 1
+                break
+            end
+        end
+    end
+    openPage(start_page)
+end
+
+-- Read a language name from settings, resolving names the app no longer offers
+-- (a setting saved as "Chinese" before the Mandarin/Cantonese split)
+function DictSync:configuredLanguage(key, default)
+    local value = self.settings:readSetting(key)
+    if not value or value == "" then
+        return default
+    end
+    return canonicalLanguage(value)
+end
+
 -- Detect document language from KOReader
 function DictSync:detectDocumentLanguage()
     -- Check configured source language first
-    local configured_lang = self.settings:readSetting("source_language")
-    if configured_lang and configured_lang ~= "" then
+    local configured_lang = self:configuredLanguage("source_language")
+    if configured_lang then
         return configured_lang
     end
     
@@ -269,66 +433,51 @@ function DictSync:translateWithGoogle(word, source_lang_code, target_lang_code)
     end
 end
 
--- DeepL language code mapping (DeepL uses uppercase ISO codes)
-local DEEPL_LANG_MAP = {
-    ["en"] = "EN",
-    ["de"] = "DE",
-    ["fr"] = "FR",
-    ["es"] = "ES",
-    ["it"] = "IT",
-    ["pt"] = "PT",
-    ["ru"] = "RU",
-    ["ja"] = "JA",
-    ["zh"] = "ZH",
-    ["uk"] = "UK",
-    ["el"] = "EL",
-    ["nl"] = "NL",
-    ["pl"] = "PL",
-    ["bg"] = "BG",
-    ["cs"] = "CS",
-    ["da"] = "DA",
-    ["fi"] = "FI",
-    ["hu"] = "HU",
-    ["lv"] = "LV",
-    ["lt"] = "LT",
-    ["ro"] = "RO",
-    ["sk"] = "SK",
-    ["sl"] = "SL",
-    ["sv"] = "SV",
-    ["ar"] = "AR",
-    ["hi"] = "HI",
-    ["ko"] = "KO",
-    ["tr"] = "TR",
-    ["vi"] = "VI",
+-- Language name -> DeepL /v2 target_lang, for the subset DeepL's /v2/translate
+-- accepts. Routing only: everything missing here goes straight to Google.
+-- Deliberately narrower than DeepL's next-gen list, which /v2 does not accept.
+local DEEPL_CODES = {
+    ["Arabic"] = "AR", ["Bulgarian"] = "BG", ["Cantonese"] = "ZH-HANT", ["Czech"] = "CS",
+    ["Danish"] = "DA", ["Dutch"] = "NL", ["English"] = "EN", ["Estonian"] = "ET",
+    ["Finnish"] = "FI", ["French"] = "FR", ["German"] = "DE", ["Greek"] = "EL",
+    ["Hebrew"] = "HE", ["Hungarian"] = "HU", ["Indonesian"] = "ID", ["Italian"] = "IT",
+    ["Japanese"] = "JA", ["Korean"] = "KO", ["Latvian"] = "LV", ["Lithuanian"] = "LT",
+    ["Mandarin"] = "ZH-HANS", ["Norwegian"] = "NB", ["Polish"] = "PL", ["Portuguese"] = "PT",
+    ["Romanian"] = "RO", ["Russian"] = "RU", ["Slovak"] = "SK", ["Slovenian"] = "SL",
+    ["Spanish"] = "ES", ["Swedish"] = "SV", ["Thai"] = "TH", ["Turkish"] = "TR",
+    ["Ukrainian"] = "UK", ["Vietnamese"] = "VI",
 }
 
 -- Wrapper function: try DeepL first, fallback to Google
 function DictSync:translateWord(word, source_lang_name, target_lang_name)
     -- Convert language names to codes
+    local source_name = canonicalLanguage(source_lang_name)
     local source_code = "auto"
-    if source_lang_name and source_lang_name ~= "" then
-        source_code = LANGUAGE_CODE_MAP[source_lang_name] or "auto"
+    if source_name and source_name ~= "" then
+        source_code = LANGUAGE_CODE_MAP[source_name] or "auto"
     end
-    
+
+    local target_name = canonicalLanguage(target_lang_name)
     local target_code = "en"
-    if target_lang_name and target_lang_name ~= "" then
-        target_code = LANGUAGE_CODE_MAP[target_lang_name] or "en"
+    if target_name and target_name ~= "" then
+        target_code = LANGUAGE_CODE_MAP[target_name] or "en"
     end
-    
+
     -- Check if user wants to force Google Translate
     local force_google = self.settings:readSetting("force_google_translate") or false
-    
+
     -- Try DeepL first if API key is configured and not forcing Google
     if not force_google then
         local deepl_key = self.settings:readSetting("deepl_api_key")
         if deepl_key and deepl_key ~= "" then
-            -- Convert to DeepL language codes (uppercase ISO codes)
+            -- DeepL's target_lang takes script variants (ZH-HANS/ZH-HANT) that
+            -- source_lang rejects, so strip the suffix on the source side.
             local deepl_source = nil
-            if source_code ~= "auto" then
-                deepl_source = DEEPL_LANG_MAP[source_code:lower()]
+            if source_code ~= "auto" and DEEPL_CODES[source_name] then
+                deepl_source = DEEPL_CODES[source_name]:match("^([^-]+)")
             end
-            local deepl_target = DEEPL_LANG_MAP[target_code:lower()] or "EN"
-            
+            local deepl_target = DEEPL_CODES[target_name]
+
             if deepl_target then
                 local translation, error_msg = self:translateWithDeepL(word, deepl_source or "auto", deepl_target, deepl_key)
                 if translation then
@@ -342,10 +491,9 @@ function DictSync:translateWord(word, source_lang_name, target_lang_name)
         end
     end
     
-    -- Fallback to Google Translate (use lowercase codes)
-    local google_source = source_code == "auto" and "auto" or source_code:lower()
-    local google_target = target_code:lower()
-    local translation, error_msg = self:translateWithGoogle(word, google_source, google_target)
+    -- Fallback to Google Translate. Codes go verbatim: Google distinguishes
+    -- zh-CN from zh-HK, so they must not be case-folded or truncated.
+    local translation, error_msg = self:translateWithGoogle(word, source_code, target_code)
     if translation then
         return translation, nil
     end
@@ -1395,26 +1543,9 @@ end
 
 -- Fetch Wikipedia definition
 function DictSync:fetchWikipediaDefinition(word, language)
-    -- Map language to Wikipedia language code
-    local lang_code = "en"  -- Default to English
-    if language then
-        local lang_map = {
-            ["English"] = "en",
-            ["German"] = "de",
-            ["French"] = "fr",
-            ["Spanish"] = "es",
-            ["Italian"] = "it",
-            ["Portuguese"] = "pt",
-            ["Russian"] = "ru",
-            ["Japanese"] = "ja",
-            ["Chinese"] = "zh",
-            ["Greek"] = "el",
-            ["Dutch"] = "nl",
-            ["Polish"] = "pl",
-        }
-        lang_code = lang_map[language] or "en"
-    end
-    
+    -- Map language to Wikipedia language code (English if we don't know it)
+    local lang_code = language and wikipediaLanguageCode(language) or "en"
+
     local http = require("socket.http")
     local ltn12 = require("ltn12")
     local json = require("json")
@@ -2179,9 +2310,10 @@ function DictSync:exchangeCodeForSession(code)
     return true, nil
 end
 
--- Modal showing a QR of the Google authorize URL plus Cancel / manual-entry
--- buttons, modeled on this plugin's WordDetailViewer pattern.
-local GoogleQRViewer = InputContainer:extend{
+-- Modal showing a QR of some URL, a hint and a button row; used for the Google
+-- authorize URL and for the companion-app link. Modeled on this plugin's
+-- WordDetailViewer pattern.
+local QRViewer = InputContainer:extend{
     width = nil,
     qr_text = nil,
     title_text = "Scan to sign in with Google",
@@ -2190,7 +2322,7 @@ local GoogleQRViewer = InputContainer:extend{
     on_close_callback = nil,
 }
 
-function GoogleQRViewer:init()
+function QRViewer:init()
     local QRWidget = require("ui/widget/qrwidget")
     local TextBoxWidget = require("ui/widget/textboxwidget")
     local screen_min = math.min(Screen:getWidth(), Screen:getHeight())
@@ -2259,26 +2391,26 @@ function GoogleQRViewer:init()
     }
 end
 
-function GoogleQRViewer:onShow()
+function QRViewer:onShow()
     UIManager:setDirty(self, function()
         return "ui", self[1][1].dimen
     end)
     return true
 end
 
-function GoogleQRViewer:paintTo(...)
+function QRViewer:paintTo(...)
     InputContainer.paintTo(self, ...)
     self.dimen = self[1][1].dimen
 end
 
-function GoogleQRViewer:onCloseWidget()
+function QRViewer:onCloseWidget()
     if self.on_close_callback then self.on_close_callback() end
     UIManager:setDirty(nil, function()
         return "ui", self[1][1].dimen
     end)
 end
 
-function GoogleQRViewer:onClose()
+function QRViewer:onClose()
     UIManager:close(self)
     return true
 end
@@ -2333,7 +2465,7 @@ function DictSync:showGoogleQRSignIn()
                 UIManager:scheduleIn(2, poll)
             end
 
-            viewer = GoogleQRViewer:new{
+            viewer = QRViewer:new{
                 qr_text = auth_url,
                 hint_text = "Scan with your phone and sign in with Google.\n"
                     .. "Your reader will sign in automatically — just wait.",
@@ -2753,127 +2885,32 @@ function DictSync:showConfigDialog()
     end
     
     local function showSourceLanguageDialog()
-        -- Build language list from LANGUAGE_MAP
-        local language_names = {}
-        for code, name in pairs(LANGUAGE_MAP) do
-            table.insert(language_names, name)
-        end
-        table.sort(language_names)
-        
-        local current_lang = self.settings:readSetting("source_language") or ""
-        
-        -- Declare dialog variable first to avoid closure issues
-        local lang_dialog
-        
-        -- Build language buttons first
-        local lang_buttons = {}
-        table.insert(lang_buttons, {
-            text = "Auto-detect",
-            callback = function()
-                self.settings:saveSetting("source_language", "")
+        self:showLanguagePicker{
+            title = "Source Language (book)",
+            current = self:configuredLanguage("source_language"),
+            any = "Auto-detect",
+            on_select = function(name)
+                self.settings:saveSetting("source_language", name or "")
                 self.settings:flush()
-                UIManager:close(lang_dialog)
                 UIManager:show(InfoMessage:new{
-                    text = "Source language set to Auto-detect",
+                    text = "Source language set to " .. (name or "Auto-detect"),
                 })
             end,
-        })
-        
-        for _, name in ipairs(language_names) do
-            table.insert(lang_buttons, {
-                text = name,
-                callback = function()
-                    self.settings:saveSetting("source_language", name)
-                    self.settings:flush()
-                    UIManager:close(lang_dialog)
-                    UIManager:show(InfoMessage:new{
-                        text = "Source language set to " .. name,
-                    })
-                end,
-            })
-        end
-        
-        table.insert(lang_buttons, {
-            text = "Cancel",
-            callback = function()
-                UIManager:close(lang_dialog)
-            end,
-        })
-        
-        -- Split into rows of 2
-        local button_rows = {}
-        for i = 1, #lang_buttons, 2 do
-            local row = {lang_buttons[i]}
-            if lang_buttons[i + 1] then
-                table.insert(row, lang_buttons[i + 1])
-            end
-            table.insert(button_rows, row)
-        end
-        
-        -- Create dialog with complete buttons array
-        lang_dialog = ButtonDialog:new{
-            title = "Source Language",
-            text = "Select source language (language of the book):\n\nCurrent: " .. (current_lang ~= "" and current_lang or "Auto-detect"),
-            buttons = button_rows,
         }
-        
-        UIManager:show(lang_dialog)
     end
-    
+
     local function showTargetLanguageDialog()
-        -- Build language list from LANGUAGE_MAP
-        local language_names = {}
-        for code, name in pairs(LANGUAGE_MAP) do
-            table.insert(language_names, name)
-        end
-        table.sort(language_names)
-        
-        local current_lang = self.settings:readSetting("target_language") or "English"
-        
-        -- Declare dialog variable first to avoid closure issues
-        local lang_dialog
-        
-        -- Build language buttons first
-        local lang_buttons = {}
-        for _, name in ipairs(language_names) do
-            table.insert(lang_buttons, {
-                text = name,
-                callback = function()
-                    self.settings:saveSetting("target_language", name)
-                    self.settings:flush()
-                    UIManager:close(lang_dialog)
-                    UIManager:show(InfoMessage:new{
-                        text = "Target language set to " .. name,
-                    })
-                end,
-            })
-        end
-        
-        table.insert(lang_buttons, {
-            text = "Cancel",
-            callback = function()
-                UIManager:close(lang_dialog)
+        self:showLanguagePicker{
+            title = "Target Language (translation)",
+            current = self:configuredLanguage("target_language", "English"),
+            on_select = function(name)
+                self.settings:saveSetting("target_language", name)
+                self.settings:flush()
+                UIManager:show(InfoMessage:new{
+                    text = "Target language set to " .. name,
+                })
             end,
-        })
-        
-        -- Split into rows of 2
-        local button_rows = {}
-        for i = 1, #lang_buttons, 2 do
-            local row = {lang_buttons[i]}
-            if lang_buttons[i + 1] then
-                table.insert(row, lang_buttons[i + 1])
-            end
-            table.insert(button_rows, row)
-        end
-        
-        -- Create dialog with complete buttons array
-        lang_dialog = ButtonDialog:new{
-            title = "Target Language",
-            text = "Select target language (translation language):\n\nCurrent: " .. current_lang,
-            buttons = button_rows,
         }
-        
-        UIManager:show(lang_dialog)
     end
     
     -- Get current force_google setting for button text
@@ -3167,11 +3204,11 @@ end
 -- Edit dialog - simplified since languages are configured centrally
 function DictSync:showEditDialog(word1, language1, word2, language2, definition, definition2, word_id, on_save_callback, field_map)
     -- Get languages from settings (configured centrally)
-    local configured_source_lang = self.settings:readSetting("source_language") or ""
-    local configured_target_lang = self.settings:readSetting("target_language") or "English"
-    
+    local configured_source_lang = self:configuredLanguage("source_language")
+    local configured_target_lang = self:configuredLanguage("target_language", "English")
+
     -- Use provided languages or fall back to configured ones
-    local final_language1 = language1 or (configured_source_lang ~= "" and configured_source_lang or self:detectDocumentLanguage() or "English")
+    local final_language1 = language1 or configured_source_lang or self:detectDocumentLanguage() or "English"
     local final_language2 = language2 or configured_target_lang
     
     local word_data = {
@@ -3372,7 +3409,7 @@ function DictSync:handleWordSelection(selected_text)
     local source_lang = self:detectDocumentLanguage()
     
     -- Get target language (from settings or default to English)
-    local target_lang = self.settings:readSetting("target_language") or "English"
+    local target_lang = self:configuredLanguage("target_language", "English")
     
     -- Determine actual language to save and display language
     local is_auto_detect = (source_lang == nil)
@@ -3564,96 +3601,19 @@ function DictSync:showWordsFilterDialog(callback)
         self:showWordsFilterDialog(callback)
     end
     
-    local function getSortedLanguages()
-        if not self._sorted_language_names then
-            local lang_names = {}
-            for _, name in pairs(LANGUAGE_MAP) do
-                table.insert(lang_names, name)
-            end
-            table.sort(lang_names)
-            self._sorted_language_names = lang_names
-        end
-        return self._sorted_language_names
-    end
-    
     local function showLanguageSelectionDialog(title, current_value, setter, dialog_key)
-        local languages = getSortedLanguages()
-        local page_size = 20
-        local total_pages = math.max(1, math.ceil(#languages / page_size))
-        local dialog_ref
-        
-        local function openPage(page_number)
-            local buttons = {}
-            local function addRow(row_buttons)
-                table.insert(buttons, row_buttons)
-            end
-            
-            if page_number == 1 then
-                addRow({
-                    {
-                        text = (not current_value and "✓ " or "") .. "Any",
-                        callback = function()
-                            setter(nil)
-                            if dialog_ref then UIManager:close(dialog_ref) end
-                            refreshFilterDialog()
-                        end,
-                    },
-                })
-            end
-            
-            local start_idx = (page_number - 1) * page_size + 1
-            local end_idx = math.min(start_idx + page_size - 1, #languages)
-            for i = start_idx, end_idx do
-                local name = languages[i]
-                addRow({
-                    {
-                        text = (current_value == name and "✓ " or "") .. name,
-                        callback = function()
-                            setter(name)
-                            if dialog_ref then UIManager:close(dialog_ref) end
-                            refreshFilterDialog()
-                        end,
-                    },
-                })
-            end
-            
-            local nav_row = {}
-            if page_number > 1 then
-                table.insert(nav_row, {
-                    text = "◀ Previous",
-                    callback = function()
-                        if dialog_ref then UIManager:close(dialog_ref) end
-                        openPage(page_number - 1)
-                    end,
-                })
-            end
-            if page_number < total_pages then
-                table.insert(nav_row, {
-                    text = "Next ▶",
-                    callback = function()
-                        if dialog_ref then UIManager:close(dialog_ref) end
-                        openPage(page_number + 1)
-                    end,
-                })
-            end
-            if #nav_row > 0 then
-                addRow(nav_row)
-            end
-            
-            if dialog_ref then
-                UIManager:close(dialog_ref)
-            end
-            dialog_ref = ButtonDialog:new{
-                title = string.format("%s (Page %d/%d)", title, page_number, total_pages),
-                buttons = buttons,
-            }
-            self[dialog_key] = dialog_ref
-            UIManager:show(dialog_ref)
-        end
-        
-        openPage(1)
+        self:showLanguagePicker{
+            title = title,
+            current = current_value,
+            any = "Any",
+            dialog_key = dialog_key,
+            on_select = function(name)
+                setter(name)
+                refreshFilterDialog()
+            end,
+        }
     end
-    
+
     local function formatLanguageLabel(value)
         return value or "Any"
     end
@@ -5694,6 +5654,142 @@ function DictSync:showTextsExportDirDialog()
     dialog:onShowKeyboard()
 end
 
+-- Where the plugin lives, for the About box and the update check
+local WEBSITE_URL = "https://lingueez.app"
+local RELEASES_URL = "https://github.com/lysak-yurii/lingueez.koplugin/releases"
+local LATEST_RELEASE_API = "https://api.github.com/repos/lysak-yurii/lingueez.koplugin/releases/latest"
+
+-- Compare dotted version strings; returns 1 if a > b, -1 if a < b, 0 if equal.
+-- Missing and non-numeric parts count as 0, so "1.0.1" > "1.0" and a tag we
+-- can't parse never looks newer than what's installed.
+local function compareVersions(a, b)
+    local function parts(v)
+        local list = {}
+        for chunk in tostring(v or ""):gmatch("%d+") do
+            table.insert(list, tonumber(chunk))
+        end
+        return list
+    end
+    local left, right = parts(a), parts(b)
+    for i = 1, math.max(#left, #right) do
+        local l, r = left[i] or 0, right[i] or 0
+        if l ~= r then
+            return l > r and 1 or -1
+        end
+    end
+    return 0
+end
+
+-- Ask GitHub for the newest published release. Returns { version, url } or nil.
+function DictSync:fetchLatestRelease()
+    local http = require("socket.http")
+    local ltn12 = require("ltn12")
+    local json = require("json")
+    local response_body = {}
+
+    local success, result, status_code = pcall(function()
+        return http.request({
+            url = LATEST_RELEASE_API,
+            method = "GET",
+            headers = {
+                -- GitHub rejects API requests without a User-Agent
+                ["User-Agent"] = "lingueez.koplugin",
+                ["Accept"] = "application/vnd.github+json",
+            },
+            sink = ltn12.sink.table(response_body),
+            timeout = 10,
+        })
+    end)
+
+    if not success then
+        return nil, "Network error: " .. tostring(result)
+    end
+    if status_code ~= 200 then
+        return nil, "HTTP " .. tostring(status_code)
+    end
+
+    local success_decode, data = pcall(function()
+        return json.decode(table.concat(response_body))
+    end)
+    if not success_decode or not data or not data.tag_name then
+        return nil, "Could not read the release information"
+    end
+
+    return {
+        -- tags are published as "v1.0.1"
+        version = tostring(data.tag_name):gsub("^[vV]", ""),
+        url = data.html_url or RELEASES_URL,
+    }
+end
+
+-- Manual update check. Only ever reports — installing stays a deliberate act,
+-- since a plugin cannot safely overwrite itself while KOReader has it loaded.
+function DictSync:checkForUpdate()
+    local installed = (self.meta or {}).version or "?"
+    UIManager:show(InfoMessage:new{ text = "Checking for updates…", timeout = 1 })
+
+    NetworkMgr:runWhenOnline(function()
+        Trapper:wrap(function()
+            local release, err = self:fetchLatestRelease()
+            UIManager:nextTick(function()
+                if not release then
+                    UIManager:show(InfoMessage:new{
+                        text = "Could not check for updates: " .. (err or "unknown error")
+                            .. "\n\nYou can always look at:\n" .. RELEASES_URL,
+                    })
+                elseif compareVersions(release.version, installed) > 0 then
+                    UIManager:show(InfoMessage:new{
+                        text = string.format(
+                            "Lingueez %s is available — you have %s.\n\nDownload it from:\n%s"
+                            .. "\n\nCopy the lingueez.koplugin folder over the one on your"
+                            .. " device and restart KOReader.",
+                            release.version, installed, release.url),
+                    })
+                else
+                    UIManager:show(InfoMessage:new{
+                        text = string.format(
+                            "You're up to date.\n\nInstalled: %s\nLatest release: %s",
+                            installed, release.version),
+                    })
+                end
+            end)
+        end)
+    end)
+end
+
+-- What the companion apps add on top of what the reader can do: this plugin's
+-- flashcards only flip, and it has no audio at all.
+local APPS_BLURB = "Your saved words are waiting in the Lingueez apps"
+    .. " (desktop & mobile) — spaced-repetition flashcards, read-aloud audio,"
+    .. " and texts read side by side with their translation."
+
+-- Point the reader at the rest of Lingueez. Opened from the menu, never on its
+-- own: a QR is the only practical way to get a link off an e-reader.
+function DictSync:showLingueezAppsDialog()
+    local has_qr = pcall(require, "ui/widget/qrwidget")
+    if not has_qr then
+        -- Older KOReader builds ship without QRWidget; the URL still gets across
+        UIManager:show(InfoMessage:new{
+            text = APPS_BLURB .. "\n\n" .. WEBSITE_URL,
+        })
+        return
+    end
+
+    local viewer
+    viewer = QRViewer:new{
+        title_text = "Lingueez apps",
+        qr_text = WEBSITE_URL,
+        hint_text = APPS_BLURB .. "\n\nScan to open lingueez.app",
+        close_callback = function() UIManager:close(viewer) end,
+        buttons = {
+            {
+                { text = "Close", callback = function() UIManager:close(viewer) end },
+            },
+        },
+    }
+    UIManager:show(viewer)
+end
+
 -- Add to main menu
 function DictSync:addToMainMenu(menu_items)
     logger.info("Lingueez: addToMainMenu called")
@@ -5765,6 +5861,20 @@ function DictSync:addToMainMenu(menu_items)
                 },
             },
             {
+                text = "Lingueez apps",
+                keep_menu_open = true,
+                callback = function()
+                    self:showLingueezAppsDialog()
+                end,
+            },
+            {
+                text = "Check for updates",
+                keep_menu_open = true,
+                callback = function()
+                    self:checkForUpdate()
+                end,
+            },
+            {
                 text = "About",
                 keep_menu_open = true,
                 callback = function()
@@ -5772,7 +5882,8 @@ function DictSync:addToMainMenu(menu_items)
                     UIManager:show(InfoMessage:new{
                         text = (meta.fullname or "Lingueez")
                             .. "\n\nVersion " .. (meta.version or "?")
-                            .. "  ·  Build " .. (meta.build or "?"),
+                            .. "  ·  Build " .. (meta.build or "?")
+                            .. "\n\n" .. WEBSITE_URL,
                     })
                 end,
             },
@@ -5815,7 +5926,7 @@ function DictSync:init()
                 name = "lingueez",
                 fullname = "Lingueez",
                 description = "Save words to your Lingueez vocabulary with automatic translation",
-                version = "1.0.0",
+                version = "1.0.1",
             }
             logger.info("Lingueez: Using default meta")
         end

@@ -3,7 +3,7 @@
 **[lingueez.app](https://lingueez.app)** &nbsp;·&nbsp; [github.com/lysak-yurii/lingueez](https://github.com/lysak-yurii/lingueez)
 
 Save words straight from your e-reader into your Lingueez vocabulary — translated,
-tagged, and synced to the [desktop](https://github.com/lysak-yurii/lingueez) and [web app](https://web.lingueez.app) the moment you look them up.
+tagged, and synced to the [desktop](https://github.com/lysak-yurii/lingueez), [web](https://web.lingueez.app) and [Android](https://lingueez.app/mobile/) apps the moment you look them up.
 
 While you read, long-press a word and tap **Save to Lingueez**: the plugin detects
 the language, translates it, and stores it in your account. By the time you next open
@@ -19,8 +19,10 @@ Lingueez on your computer, in reader or in the web, the word is already there �
 - **Instant translation** — Google Translate built in, with optional DeepL.
 - **Knows the language** — the source language is detected from the book, so there is
   nothing to pick for each word.
+- **105 languages** — the same list Lingueez offers across devices.
 - **One vocabulary, everywhere** — words sync to the same account as the [Lingueez](https://lingueez.app)
-  desktop and [web app](https://web.lingueez.app), kept private to you.
+  desktop, [web](https://web.lingueez.app) and [Android](https://lingueez.app/mobile/)
+  apps, kept private to you.
 - **Texts, not just words** — save the chapter you're reading to your
   Lingueez library to study later with
   side-by-side translation in the desktop and web app,
@@ -44,7 +46,7 @@ with your account.
 2. Tap **Sign in (email)** and enter your Lingueez email and password, **or** tap
    **Sign in with Google** for the phone-assisted flow below.
 3. That's it — everything you save is private to your account and shows up in the
-   desktop and web apps.
+   desktop, web and Android apps.
 
 > New to Lingueez? Create your account on the [desktop or web app](https://lingueez.app)
 > first — the plugin signs you in, it doesn't register new accounts.
@@ -72,8 +74,10 @@ Either way the word lands in your dictionary, marked *New*, ready to study in al
 
 ## Translation provider
 
-Google Translate works out of the box. To use **DeepL** instead, copy `.env.example`
-to `.env` next to the plugin and add your `DEEPL_API_KEY`.
+Google Translate works out of the box and covers all 105 languages. To use **DeepL**
+instead, copy `.env.example` to `.env` next to the plugin and add your `DEEPL_API_KEY`
+— 34 of those languages then go through DeepL and the rest keep using Google, with no
+setup either way.
 
 ## Troubleshooting
 
