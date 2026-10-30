@@ -5926,7 +5926,7 @@ function DictSync:init()
                 name = "lingueez",
                 fullname = "Lingueez",
                 description = "Save words to your Lingueez vocabulary with automatic translation",
-                version = "1.0.1",
+                version = "1.0.2",
             }
             logger.info("Lingueez: Using default meta")
         end
@@ -5948,8 +5948,19 @@ function DictSync:init()
     -- Register menu to main menu (under "tools")
     -- Make our menu appear in tools section
     local menu_order = require("ui/elements/reader_menu_order")
+    -- menu_order is a shared module table and init() runs on every document open,
+    -- so only insert once
     if menu_order and menu_order.tools then
-        table.insert(menu_order.tools, 1, "lingueez")
+        local already_ordered = false
+        for _, name in ipairs(menu_order.tools) do
+            if name == "lingueez" then
+                already_ordered = true
+                break
+            end
+        end
+        if not already_ordered then
+            table.insert(menu_order.tools, 1, "lingueez")
+        end
     end
     
     if self.ui.menu then
@@ -5961,7 +5972,7 @@ function DictSync:init()
     
     -- Add button to highlight dialog (word selection popup)
     if self.ui.highlight then
-        self.ui.highlight:addToHighlightDialog("lingueez", function(_reader_highlight_instance)
+        self.ui.highlight:addToHighlightDialog("13_lingueez", function(_reader_highlight_instance)
             return {
                 text = "Save to Lingueez",
                 callback = function()
@@ -5981,11 +5992,40 @@ function DictSync:init()
         logger.warn("Lingueez: No highlight available")
     end
     
+    -- Add button to dictionary popup on newer KOReader versions
+    -- (older versions use the DictButtonsReady event, see onDictButtonsReady below)
+    if self:hasDictButtonsApi() then
+        self.ui.dictionary:addToDictButtons({
+            id = "lingueez_save",
+            text = "Save to Lingueez",
+            font_bold = true,
+            conditional = true,
+            callback = function(dict_popup)
+                local word = dict_popup.lookupword or dict_popup.word
+                if word and word ~= "" then
+                    NetworkMgr:runWhenOnline(function()
+                        Trapper:wrap(function()
+                            self:handleWordSelection(word)
+                        end)
+                    end)
+                end
+            end,
+        })
+        logger.info("Lingueez: Dictionary popup button registered")
+    end
+    
     logger.info("Lingueez plugin initialized successfully")
 end
 
--- Add button to dictionary popup (like assistant plugin)
+function DictSync:hasDictButtonsApi()
+    return self.ui.dictionary ~= nil and type(self.ui.dictionary.addToDictButtons) == "function"
+end
+
+-- Add button to dictionary popup on older KOReader versions (like assistant plugin)
 function DictSync:onDictButtonsReady(dict_popup, dict_buttons)
+    if self:hasDictButtonsApi() then
+        return -- already registered via addToDictButtons in init()
+    end
     if not dict_popup or not dict_popup.word then
         return
     end
